@@ -148,6 +148,7 @@ nav button[aria-current="page"]{color:var(--accent);font-weight:600}
   <div class="card"><h1>Daybook</h1><p class="muted">Opening your journal…</p></div>
 </main>
 <div class="toast" id="toast" hidden></div>
+<button type="button" class="toast" id="update-bar" hidden style="border:0;cursor:pointer;bottom:calc(130px + env(safe-area-inset-bottom,0px))">Daybook was updated. Tap to load it.</button>
 <nav aria-label="Sections"><div class="in" id="nav"></div></nav>
 
 <script>
@@ -672,6 +673,7 @@ function onAddTag(ev){
 }
 
 // ---------- events ----------
+document.getElementById("update-bar").addEventListener("click",()=>{ flushTyping(); saveChain.then(()=>location.reload()); });
 document.addEventListener("click",ev=>{
   const b=ev.target.closest("[data-act]"); if(!b) return;
   const a=b.dataset.act, v=b.dataset.v;
@@ -777,7 +779,17 @@ document.addEventListener("change",async ev=>{
   ev.target.value="";
 });
 try{ navigator.storage && navigator.storage.persist && navigator.storage.persist(); }catch(e){}
-if("serviceWorker" in navigator){ window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{})); }
+if("serviceWorker" in navigator){
+  const hadController=!!navigator.serviceWorker.controller;
+  let reg=null;
+  window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").then(r=>{reg=r;}).catch(()=>{}));
+  // look for a new version whenever the app comes back to the front
+  document.addEventListener("visibilitychange",()=>{ if(!document.hidden && reg) reg.update().catch(()=>{}); });
+  navigator.serviceWorker.addEventListener("controllerchange",()=>{
+    if(!hadController) return;
+    const el=document.getElementById("update-bar"); if(el) el.hidden=false;
+  });
+}
 S.ready=false; render(); initStore();
 })();
 </script>
