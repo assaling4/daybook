@@ -20,7 +20,7 @@
   --bg:#EEF1F6; --surface:#FFFFFF; --ink:#17202E; --muted:#5D6878; --line:#D8DEE8;
   --accent:#2F5BD3; --accent-ink:#FFFFFF; --accent-soft:#E3EAFB;
   --m1:#6A4FB3; --m2:#4E7FC9; --m3:#8A97A8; --m4:#3FA57A; --m5:#E0A21B;
-  --low-band:rgba(106,79,179,.13); --warn-bg:#F1ECFB; --warn-ink:#47357F;
+  --low-band:rgba(106,79,179,.13); --hol:#C8323C; --warn-bg:#F1ECFB; --warn-ink:#47357F;
   --display:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
   --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
   --r:14px;
@@ -29,12 +29,12 @@
   --bg:#0F141C; --surface:#18202B; --ink:#E8EDF5; --muted:#98A3B3; --line:#2A3442;
   --accent:#7C9CF5; --accent-ink:#0F141C; --accent-soft:#1F2A40;
   --m1:#9C84E6; --m2:#6E9DE3; --m3:#7E8A9B; --m4:#55C292; --m5:#F0B93D;
-  --low-band:rgba(156,132,230,.16); --warn-bg:#231D38; --warn-ink:#CFC2F5; color-scheme:dark}}
+  --low-band:rgba(156,132,230,.16); --hol:#FF7A80; --warn-bg:#231D38; --warn-ink:#CFC2F5; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0F141C; --surface:#18202B; --ink:#E8EDF5; --muted:#98A3B3; --line:#2A3442;
   --accent:#7C9CF5; --accent-ink:#0F141C; --accent-soft:#1F2A40;
   --m1:#9C84E6; --m2:#6E9DE3; --m3:#7E8A9B; --m4:#55C292; --m5:#F0B93D;
-  --low-band:rgba(156,132,230,.16); --warn-bg:#231D38; --warn-ink:#CFC2F5; color-scheme:dark}
+  --low-band:rgba(156,132,230,.16); --hol:#FF7A80; --warn-bg:#231D38; --warn-ink:#CFC2F5; color-scheme:dark}
 *{box-sizing:border-box}
 html{padding-top:env(safe-area-inset-top,0px)}
 body{margin:0}
@@ -138,6 +138,19 @@ nav button[aria-current="page"]{color:var(--accent);font-weight:600}
   textarea#entry-text{min-height:62vh}
   .toast{bottom:32px}
 }
+.months{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.months .chip{flex:none}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal .dow{font-size:.7rem;text-align:center;color:var(--muted);font-weight:600;padding-bottom:2px}
+.cal .dow.sun,.cal .red b{color:var(--hol)}
+.cal .day{flex-direction:column;justify-content:flex-start;gap:2px;padding:6px 2px;min-height:58px;border-radius:10px;min-width:0}
+.cal .day b{font-variant-numeric:tabular-nums;font-weight:600;font-size:.95rem}
+.cal .day.today{border-color:var(--accent)}
+.cal .day[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.cal .marks{display:flex;gap:3px;height:8px;align-items:center}
+.cal .marks i{display:block;width:7px;height:7px;border-radius:50%}
+.cal .marks .ev{background:transparent;border:1.5px solid var(--ink);width:6px;height:6px;border-radius:2px}
+.cal .hn{font-size:.58rem;line-height:1.1;color:var(--hol);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(80px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:.85rem;z-index:6}
 @media (prefers-reduced-motion:no-preference){.card{animation:in .25s ease both}@keyframes in{from{transform:translateY(4px)}to{transform:none}}}
 </style>
@@ -452,15 +465,73 @@ function chartSVG(list){
   return s+`</svg></div>`;
 }
 
+// ---------- holidays (2026-2027) ----------
+const HOL={
+ kr:{"2026-01-01":"New Year's Day · 신정","2026-02-16":"Seollal · 설날 연휴","2026-02-17":"Seollal · 설날","2026-02-18":"Seollal · 설날 연휴",
+  "2026-03-01":"Independence Movement Day · 삼일절","2026-03-02":"Substitute holiday · 대체공휴일 (삼일절)","2026-05-05":"Children's Day · 어린이날",
+  "2026-05-24":"Buddha's Birthday · 부처님오신날","2026-05-25":"Substitute holiday · 대체공휴일 (부처님오신날)","2026-06-03":"Local elections · 지방선거일",
+  "2026-06-06":"Memorial Day · 현충일","2026-08-15":"Liberation Day · 광복절","2026-08-17":"Substitute holiday · 대체공휴일 (광복절)",
+  "2026-09-24":"Chuseok · 추석 연휴","2026-09-25":"Chuseok · 추석","2026-09-26":"Chuseok · 추석 연휴","2026-10-03":"National Foundation Day · 개천절",
+  "2026-10-05":"Substitute holiday · 대체공휴일 (개천절)","2026-10-09":"Hangul Day · 한글날","2026-12-25":"Christmas · 성탄절",
+  "2027-01-01":"New Year's Day · 신정","2027-02-06":"Seollal · 설날 연휴","2027-02-07":"Seollal · 설날","2027-02-08":"Seollal · 설날 연휴",
+  "2027-02-09":"Substitute holiday · 대체공휴일 (설날)","2027-03-01":"Independence Movement Day · 삼일절","2027-05-05":"Children's Day · 어린이날",
+  "2027-05-13":"Buddha's Birthday · 부처님오신날","2027-06-06":"Memorial Day · 현충일","2027-08-15":"Liberation Day · 광복절",
+  "2027-08-16":"Substitute holiday · 대체공휴일 (광복절)","2027-09-14":"Chuseok · 추석 연휴","2027-09-15":"Chuseok · 추석","2027-09-16":"Chuseok · 추석 연휴",
+  "2027-10-03":"National Foundation Day · 개천절","2027-10-04":"Substitute holiday · 대체공휴일 (개천절)","2027-10-09":"Hangul Day · 한글날",
+  "2027-10-11":"Substitute holiday · 대체공휴일 (한글날)","2027-12-25":"Christmas · 성탄절","2027-12-27":"Substitute holiday · 대체공휴일 (성탄절)"},
+ us:{"2026-01-01":"New Year's Day","2026-01-19":"Martin Luther King Jr. Day","2026-02-16":"Presidents' Day","2026-05-25":"Memorial Day",
+  "2026-06-19":"Juneteenth","2026-07-03":"Independence Day (observed)","2026-07-04":"Independence Day","2026-09-07":"Labor Day",
+  "2026-10-12":"Columbus Day","2026-11-11":"Veterans Day","2026-11-26":"Thanksgiving","2026-12-25":"Christmas Day",
+  "2027-01-01":"New Year's Day","2027-01-18":"Martin Luther King Jr. Day","2027-02-15":"Presidents' Day","2027-05-31":"Memorial Day",
+  "2027-06-18":"Juneteenth (observed)","2027-06-19":"Juneteenth","2027-07-04":"Independence Day","2027-07-05":"Independence Day (observed)",
+  "2027-09-06":"Labor Day","2027-10-11":"Columbus Day","2027-11-11":"Veterans Day","2027-11-25":"Thanksgiving","2027-12-24":"Christmas Day (observed)","2027-12-25":"Christmas Day"}};
+const PREFS="daybook-prefs";
+const prefs=(()=>{ try{ return Object.assign({kr:true,us:true},JSON.parse(localStorage.getItem(PREFS)||"{}")); }catch(e){ return {kr:true,us:true}; } })();
+const savePrefs=()=>{ try{ localStorage.setItem(PREFS,JSON.stringify(prefs)); }catch(e){} };
+function holidaysOn(k){ const out=[]; if(prefs.kr&&HOL.kr[k]) out.push({c:"kr",n:HOL.kr[k]}); if(prefs.us&&HOL.us[k]) out.push({c:"us",n:HOL.us[k]}); return out; }
+const CAL_YEARS=[2026,2027];
+const MONTHS=[...Array(12)].map((_,i)=>new Date(2026,i,1).toLocaleDateString("en-US",{month:"short"}));
+function itemRow(e){ return `<div class="item"><span class="time">${esc(fmtTime(e.time))}</span><div class="grow"><h3>${esc(e.title)}</h3><p class="muted small">${e.end?`Until ${esc(fmtTime(e.end))} · `:""}${e.repeat==="weekly"?"Every "+e.days.map(i=>DOW[i]).join(", "):"Once"}</p>${e.note?`<p class="clip">${esc(e.note)}</p>`:""}<div class="row" style="margin-top:6px;gap:4px"><a class="btn ghost" href="${esc(gcalLink(e))}" target="_blank" rel="noopener">Remind me</a><button type="button" class="ghost" data-act="editevent" data-v="${e.id}">Edit</button></div></div></div>`; }
+function schedHeader(){
+  const m=S.schedMode==="month";
+  return `<div class="row between"><h1>Schedule</h1><div class="row" style="gap:8px"><button type="button" data-act="schedmode" data-v="${m?"week":"month"}" aria-label="${m?"Show this week":"Show full calendar"}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>${m?"":'<path d="M7 14h2M11 14h2M15 14h2M7 17.5h2M11 17.5h2"/>'}</svg>${m?"This week":"Full date"}</button><button type="button" class="primary" data-act="newevent">Add</button></div></div>`;
+}
+function vMonth(){
+  const now=new Date();
+  if(S.calY==null){ S.calY=Math.min(Math.max(now.getFullYear(),CAL_YEARS[0]),CAL_YEARS[CAL_YEARS.length-1]); S.calM=now.getMonth(); S.calSel=todayKey(); }
+  const y=S.calY, m=S.calM, first=new Date(y,m,1), lead=(first.getDay()+6)%7, n=new Date(y,m+1,0).getDate();
+  const tk=todayKey();
+  const atStart=y===CAL_YEARS[0]&&m===0, atEnd=y===CAL_YEARS[CAL_YEARS.length-1]&&m===11;
+  let h=schedHeader();
+  h+=`<div class="card"><div class="row between"><div class="seg" role="group" aria-label="Year">${CAL_YEARS.map(yy=>`<button type="button" data-act="caly" data-v="${yy}" aria-pressed="${yy===y}">${yy}</button>`).join("")}</div>
+    <div class="row" style="gap:6px"><button type="button" class="chip" data-act="holtog" data-v="kr" aria-pressed="${prefs.kr}">Korea holidays</button><button type="button" class="chip" data-act="holtog" data-v="us" aria-pressed="${prefs.us}">US holidays</button></div></div>
+    <div class="months">${MONTHS.map((mm,i)=>`<button type="button" class="chip" data-act="calm" data-v="${i}" aria-pressed="${i===m}">${mm}</button>`).join("")}</div>
+    <div class="row between"><button type="button" class="ghost" data-act="calstep" data-v="-1" ${atStart?"disabled":""} aria-label="Previous month">‹</button><h2>${esc(first.toLocaleDateString("en-US",{month:"long",year:"numeric"}))}</h2><button type="button" class="ghost" data-act="calstep" data-v="1" ${atEnd?"disabled":""} aria-label="Next month">›</button></div>
+    <div class="cal" role="grid">${["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d,i)=>`<span class="dow${i===6?" sun":""}">${d}</span>`).join("")}${"<span></span>".repeat(lead)}`;
+  for(let d=1; d<=n; d++){
+    const dt=new Date(y,m,d), k=keyOf(dt), hol=holidaysOn(k), ev=eventsOn(dt).length, mood=k<=tk?S.entries[k]?.mood:null;
+    const cls=["day"]; if(hol.length||dt.getDay()===0) cls.push("red"); if(k===tk) cls.push("today");
+    h+=`<button type="button" class="${cls.join(" ")}" data-act="calsel" data-v="${k}" aria-pressed="${k===S.calSel}" aria-label="${esc(niceDate(k))}${hol.length?", "+esc(hol.map(x=>x.n).join(", ")):""}${ev?`, ${ev} item${ev>1?"s":""}`:""}"><b>${d}</b><span class="marks">${mood?`<i class="md" style="background:${moodColor(mood)}"></i>`:""}${ev?`<i class="ev"></i>`:""}</span>${hol.length?`<span class="hn">${esc(hol[0].n.split(" · ").pop())}</span>`:""}</button>`;
+  }
+  h+=`</div><p class="muted small">Round dot: your mood that day. Small square: schedule items. Red date: Sunday or holiday.</p></div>`;
+  const sk=S.calSel, sd=fromKey(sk), hol=holidaysOn(sk), items=eventsOn(sd), ent=S.entries[sk];
+  h+=`<div class="card"><div class="row between"><h2>${esc(niceDate(sk))}</h2>${sk===tk?`<span class="pill">Today</span>`:""}</div>`;
+  if(hol.length) h+=`<div class="stack" style="gap:4px">${hol.map(x=>`<p class="small"><span class="pill">${x.c==="kr"?"Korea":"US"}</span> ${esc(x.n)}</p>`).join("")}</div>`;
+  h+= items.length? `<div class="list">${items.map(itemRow).join("")}</div>` : `<p class="muted">Nothing planned.</p>`;
+  h+=`<div class="row"><button type="button" data-act="newevent" data-v="${sk}">Add on this day</button>${sk<=tk?`<button type="button" class="ghost" data-act="open" data-v="${sk}">${ent?(ent.mood?`Journal · ${MOODS[ent.mood-1].label}`:"Open journal entry"):"Write about this day"}</button>`:""}</div></div>`;
+  return h;
+}
+
 function vSchedule(){
+  if(S.schedMode==="month") return vMonth();
   const now=new Date(); const start=addDays(now,-((now.getDay()+6)%7)); // Monday
   const days=[...Array(7)].map((_,i)=>addDays(start,i));
   const sel=days.find(d=>d.getDay()===S.schedDay)||now;
   const items=eventsOn(sel);
   const weeklyCount=evList().filter(e=>e.repeat==="weekly").length;
-  let h=`<div class="row between"><h1>Schedule</h1><button type="button" class="primary" data-act="newevent">Add</button></div>
+  let h=schedHeader()+`
   <div class="week">${days.map(d=>`<button type="button" data-act="day" data-v="${d.getDay()}" aria-pressed="${d.getDay()===S.schedDay}" class="${eventsOn(d).length?"has":""}"><span>${DOW[d.getDay()]}</span><b>${d.getDate()}</b></button>`).join("")}</div>
-  <div class="card"><h2>${esc(DOW_LONG[sel.getDay()])}${keyOf(sel)===todayKey()?" · today":""}</h2>`;
+  <div class="card"><h2>${esc(DOW_LONG[sel.getDay()])}${keyOf(sel)===todayKey()?" · today":""}</h2>${holidaysOn(keyOf(sel)).map(x=>`<p class="small"><span class="pill">${x.c==="kr"?"Korea":"US"}</span> ${esc(x.n)}</p>`).join("")}`;
   if(!items.length) h+=`<p class="muted">Nothing on this day. Tap Add for a class, shift, appointment or routine. Weekly items repeat every week so they're easy to memorize.</p>`;
   else h+=`<div class="list">${items.map(e=>`<div class="item"><span class="time">${esc(fmtTime(e.time))}</span><div class="grow"><h3>${esc(e.title)}</h3><p class="muted small">${e.end?`Until ${esc(fmtTime(e.end))} · `:""}${e.repeat==="weekly"?"Every "+e.days.map(i=>DOW[i]).join(", "):"Once"}</p>${e.note?`<p class="clip">${esc(e.note)}</p>`:""}<div class="row" style="margin-top:6px;gap:4px"><a class="btn ghost" href="${esc(gcalLink(e))}" target="_blank" rel="noopener">Remind me</a><button type="button" class="ghost" data-act="editevent" data-v="${e.id}">Edit</button></div></div></div>`).join("")}</div>`;
   h+=`</div>`;
@@ -470,7 +541,7 @@ function vSchedule(){
 }
 
 function vEvent(){
-  const e=S.eventId&&S.events[S.eventId]?S.events[S.eventId]:{title:"",time:"09:00",end:"",repeat:"weekly",days:[S.schedDay],date:todayKey(),note:""};
+  const e=S.eventId&&S.events[S.eventId]?S.events[S.eventId]:{title:"",time:"09:00",end:"",repeat:S.newDate?"once":"weekly",days:[S.newDate?fromKey(S.newDate).getDay():S.schedDay],date:S.newDate||todayKey(),note:""};
   const days=e.days||[];
   return `<div class="row between"><button type="button" class="ghost" data-act="go" data-v="schedule">‹ Schedule</button></div>
   <h1>${S.eventId?"Edit item":"New item"}</h1>
@@ -545,7 +616,7 @@ function onEventSave(ev){
   const id=S.eventId||("ev"+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   S.events[id]={title,time,end,repeat:rep,days:rep==="weekly"?days:[],date:rep==="weekly"?"":date,note};
   saveEvent(id);
-  if(rep!=="weekly"){ S.schedDay=fromKey(date).getDay(); }
+  if(rep!=="weekly"){ S.schedDay=fromKey(date).getDay(); const dd=fromKey(date); if(CAL_YEARS.includes(dd.getFullYear())){ S.calY=dd.getFullYear(); S.calM=dd.getMonth(); S.calSel=date; } }
   toast("Saved. Tap Remind me to get notifications."); go("schedule");
 }
 let delArmed=false;
@@ -706,7 +777,14 @@ document.addEventListener("click",ev=>{
   else if(a==="deltag"){ S.customTags=S.customTags.filter(t=>t!==v); saveTags(); flushTyping(); if(!S.customTags.length) S.manageTags=false; render(); toast(`Removed "${v}" from your list. Past entries keep it.`); }
   else if(a==="range"){ S.range=+v; render(); }
   else if(a==="day"){ S.schedDay=+v; render(); }
-  else if(a==="newevent"||a==="editevent"){ S.eventId=a==="editevent"?v:null; const e=S.eventId?S.events[S.eventId]:null; draftRep=e?e.repeat:"weekly"; draftDays=new Set(e?e.days:[S.schedDay]); go("event"); }
+  else if(a==="newevent"||a==="editevent"){ S.eventId=a==="editevent"?v:null; S.newDate=(a==="newevent"&&v)?v:null; const e=S.eventId?S.events[S.eventId]:null;
+    draftRep=e?e.repeat:(S.newDate?"once":"weekly"); draftDays=new Set(e?e.days:[S.newDate?fromKey(S.newDate).getDay():S.schedDay]); go("event"); }
+  else if(a==="schedmode"){ S.schedMode=v; render(); }
+  else if(a==="caly"){ S.calY=+v; render(); }
+  else if(a==="calm"){ S.calM=+v; render(); }
+  else if(a==="calstep"){ const d=new Date(S.calY,S.calM+(+v),1); if(CAL_YEARS.includes(d.getFullYear())){ S.calY=d.getFullYear(); S.calM=d.getMonth(); render(); } }
+  else if(a==="calsel"){ S.calSel=v; render(); }
+  else if(a==="holtog"){ prefs[v]=!prefs[v]; savePrefs(); render(); }
   else if(a==="rep"){ draftRep=v; document.querySelectorAll('[data-act="rep"]').forEach(x=>x.setAttribute("aria-pressed",String(x.dataset.v===v))); document.getElementById("ev-days").hidden=v!=="weekly"; document.getElementById("ev-date-wrap").hidden=v==="weekly"; }
   else if(a==="evday"){ const n=+v; draftDays.has(n)?draftDays.delete(n):draftDays.add(n); b.setAttribute("aria-pressed",String(draftDays.has(n))); }
   else if(a==="delevent"){ if(!delArmed){ delArmed=true; b.textContent="Tap again to delete"; setTimeout(()=>{delArmed=false; if(b.isConnected) b.textContent="Delete";},3000); return; }
@@ -758,6 +836,13 @@ document.addEventListener("submit",async ev=>{
   } finally { if(btn.isConnected) btn.disabled=false; }
 });
 window.addEventListener("pagehide",flushTyping);
+// a new day starts: refresh dates on screen (Today, New entry, calendar) unless the person is typing
+let shownDay=todayKey();
+function checkNewDay(){ const k=todayKey(); if(k===shownDay) return; shownDay=k;
+  const typing=document.activeElement && /TEXTAREA|INPUT/.test(document.activeElement.tagName);
+  if(!typing && !S.locked) render(); }
+setInterval(checkNewDay,30000);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden) checkNewDay(); });
 
 async function exportBackup(){
   let data;
