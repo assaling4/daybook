@@ -179,7 +179,69 @@ const S = { entries:{}, events:{}, view:"today", entryKey:null, eventId:null, sc
 // ---------- storage: db when available, browser storage otherwise ----------
 const LS = "daybook-v1";
 const lsLoad = () => { try { const j = JSON.parse(localStorage.getItem(LS)||"{}"); S.entries=j.entries||{}; S.events=j.events||{}; S.customTags=j.customTags||[]; S.ignoreWords=j.ignoreWords||[]; } catch(e){} };
-const lsSave = () => { try { localStorage.setItem(LS, JSON.stringify({entries:S.entries,events:S.events,customTags:S.customTags,ignoreWords:S.ignoreWords})); } catch(e){} };
+// ---------- passcode lock: AES-GCM with a key derived from the passcode (PBKDF2) ----------
+const LOCK="daybook-lock", ENC="daybook-enc", ITER=310000;
+const te=new TextEncoder(), td=new TextDecoder();
+let KEY=null, saveChain=Promise.resolve(), hiddenAt=0;
+const payload=()=>({entries:S.entries,events:S.events,customTags:S.customTags,ignoreWords:S.ignoreWords});
+function toB64(buf){ let s=""; const u=new Uint8Array(buf); for(let i=0;i<u.length;i+=0x8000) s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000)); return btoa(s); }
+function fromB64(s){ const b=atob(s), u=new Uint8Array(b.length); for(let i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u; }
+async function deriveKey(code,salt,iter){ const base=await crypto.subtle.importKey("raw",te.encode(code),"PBKDF2",false,["deriveKey"]); return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:iter,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]); }
+async function encryptObj(key,obj){ const iv=crypto.getRandomValues(new Uint8Array(12)); const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,te.encode(JSON.stringify(obj))); return {iv:toB64(iv),ct:toB64(ct)}; }
+async function decryptObj(key,rec){ const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:fromB64(rec.iv)},key,fromB64(rec.ct)); return JSON.parse(td.decode(pt)); }
+const lockMeta=()=>{ try{ return JSON.parse(localStorage.getItem(LOCK)||"null"); }catch(e){ return null; } };
+const applyData=j=>{ S.entries=j.entries||{}; S.events=j.events||{}; S.customTags=j.customTags||[]; S.ignoreWords=j.ignoreWords||[]; };
+const lsSave = () => {
+  if(KEY){ const k=KEY, snap=JSON.parse(JSON.stringify(payload()));
+    saveChain=saveChain.then(()=>encryptObj(k,snap)).then(r=>{ localStorage.setItem(ENC,JSON.stringify(r)); }).catch(()=>toast("Couldn't save. Your phone may be out of space."));
+    return saveChain; }
+  try { localStorage.setItem(LS, JSON.stringify(payload())); } catch(e){}
+  return Promise.resolve();
+};
+async function unlock(code){
+  const m=lockMeta(); const key=await deriveKey(code,fromB64(m.salt),m.iter||ITER);
+  const raw=localStorage.getItem(ENC);
+  const data=raw? await decryptObj(key,JSON.parse(raw)) : {};   // throws on a wrong code
+  applyData(data); KEY=key; S.locked=false;
+}
+async function setPasscode(code){
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const key=await deriveKey(code,salt,ITER);
+  KEY=key; await lsSave();
+  localStorage.setItem(LOCK,JSON.stringify({v:1,salt:toB64(salt),iter:ITER}));
+  localStorage.removeItem(LS);
+}
+async function removePasscode(){
+  await saveChain; KEY=null;
+  localStorage.setItem(LS,JSON.stringify(payload()));
+  localStorage.removeItem(ENC); localStorage.removeItem(LOCK);
+}
+async function lockNow(){
+  if(!lockMeta()) return;
+  flushTyping(); await saveChain;
+  KEY=null; applyData({}); S.locked=true; S.view="today"; S.secForm=null; render();
+}
+function vLock(){
+  return `<div class="card" style="margin-top:12vh;max-width:380px;align-self:center;width:100%"><h1>Daybook</h1><p class="muted">Enter your passcode to open your journal.</p>
+  <form id="lock-form" class="stack"><label class="f" for="lock-code">Passcode<input id="lock-code" type="password" inputmode="numeric" autocomplete="off" maxlength="6" autofocus></label>
+  <p class="small danger" id="lock-err" hidden></p><button type="submit" class="primary">Unlock</button></form></div>`;
+}
+function securityCard(){
+  const on=!!lockMeta();
+  let h=`<div class="card"><div class="row between"><h2>Passcode lock</h2><span class="pill">${on?"On":"Off"}</span></div>`;
+  if(S.secForm==="set"){
+    h+=`<form id="sec-form" class="stack"><label class="f" for="pc1">New passcode (4 to 6 digits)<input id="pc1" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6"></label>
+    <label class="f" for="pc2">Type it again<input id="pc2" type="password" inputmode="numeric" autocomplete="new-password" maxlength="6"></label>
+    <p class="small">If you forget this passcode, your journal can't be opened again, by anyone. Write it down somewhere safe.</p>
+    <p class="small danger" id="sec-err" hidden></p><div class="row"><button type="submit" class="primary">Save passcode</button><button type="button" class="ghost" data-act="seccancel">Cancel</button></div></form>`;
+  } else if(on){
+    h+=`<p class="muted small">Your journal is encrypted on this device. Daybook locks when you open it and after 1 minute in the background.</p>
+    <div class="row"><button type="button" data-act="locknow">Lock now</button><button type="button" data-act="secset">Change passcode</button><button type="button" class="ghost danger" data-act="secoff">Turn off</button></div>`;
+  } else {
+    h+=`<p class="muted small">Ask for a passcode every time Daybook opens, and encrypt your journal with it.</p><div class="row"><button type="button" data-act="secset">Set a passcode</button></div>`;
+  }
+  return h+`</div>`;
+}
 let col = null;           // db collection for this person
 const chains = {};        // one write at a time per doc
 function write(docId, body){
@@ -196,6 +258,7 @@ const allTags = () => { const used=new Set(); Object.values(S.entries).forEach(e
 const saveEvent = id => { const e=S.events[id]; write("v-"+id, e ? {kind:"event",id,...e} : null); };
 
 async function initStore(){
+  if(lockMeta()){ S.locked=true; S.ready=true; render(); return; }
   lsLoad();
   try{
     const c = window.claude;
@@ -327,7 +390,7 @@ function vJournal(){
   return h+backupCard();
 }
 function backupCard(){
-  return `<div class="card"><h2>Backup</h2><p class="muted small">Your journal is saved only on this device. Save a backup file now and then (for example to iCloud Drive), so you don't lose it if the phone is lost or Safari data is cleared. You can also use a backup to move your journal to your PC.</p>
+  return pendingImportCard()+securityCard()+`<div class="card"><h2>Backup</h2><p class="muted small">Your journal is saved only on this device${lockMeta()?", and backups are encrypted with your passcode":""}. Save a backup file now and then (for example to iCloud Drive), so you don't lose it if the phone is lost or Safari data is cleared. You can also use a backup to move your journal to your PC.</p>
   <div class="row"><button type="button" data-act="export">Save backup</button><label class="btn" for="import-file">Restore from backup</label><input id="import-file" type="file" accept=".json,application/json" hidden></div></div>`;
 }
 
@@ -445,6 +508,8 @@ function render(){
   renderNav();
   const app=document.getElementById("app");
   if(!S.ready){ return; }
+  document.querySelector("nav").hidden=!!S.locked;
+  if(S.locked){ app.innerHTML=vLock(); setTimeout(()=>document.getElementById("lock-code")?.focus(),50); return; }
   const v={today:vToday,journal:vJournal,entry:vEntry,mood:vMood,schedule:vSchedule,event:vEvent,recall:vRecall}[S.view]||vToday;
   app.innerHTML=v();
   if(S.view==="entry"){ const ta=document.getElementById("entry-text"); ta.addEventListener("input",onType); document.getElementById("tagform").addEventListener("submit",onAddTag); }
@@ -620,6 +685,12 @@ document.addEventListener("click",ev=>{
   else if(a==="checkeng"){ checkEnglish(); }
   else if(a==="freecheck"){ freeCheck(); }
   else if(a==="export"){ exportBackup(); }
+  else if(a==="secset"){ S.secForm="set"; render(); document.getElementById("pc1")?.focus(); }
+  else if(a==="seccancel"){ S.secForm=null; render(); }
+  else if(a==="locknow"){ lockNow(); }
+  else if(a==="impcancel"){ pendingImport=null; render(); }
+  else if(a==="secoff"){ if(!delArmed){ delArmed=true; b.textContent="Tap again to turn off"; setTimeout(()=>{delArmed=false; if(b.isConnected) b.textContent="Turn off";},3000); return; }
+    delArmed=false; removePasscode().then(()=>{ render(); toast("Passcode turned off. Your journal is no longer encrypted."); }); }
   else if(a==="copyclaude"){ flushTyping(); const t=(S.entries[S.entryKey]?.text||"").trim(); if(!t){ toast("Write something first."); return; }
     const msg=`I'm learning English. Please correct this journal entry. Keep my meaning and voice. List each change as "original → corrected" with one short, simple reason, then show the full corrected text, then give me one pattern to practice.\n\n${t}`;
     (navigator.clipboard?navigator.clipboard.writeText(msg):Promise.reject()).then(()=>toast("Copied. Paste it into Claude."),()=>toast("Couldn't copy. Select the text and copy it yourself.")); }
@@ -642,11 +713,55 @@ document.addEventListener("click",ev=>{
   else if(a==="reveal"){ S.recall.shown=true; render(); }
   else if(a==="mark"){ const c=S.recall.cards[S.recall.i]; if(v==="1"){S.recall.ok++; missed.delete(c.id);} else missed.add(c.id); S.recall.i++; S.recall.shown=false; render(); }
 });
-document.addEventListener("visibilitychange",()=>{ if(document.hidden) flushTyping(); });
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){ flushTyping(); hiddenAt=Date.now(); }
+  else if(KEY && hiddenAt && Date.now()-hiddenAt>60000){ lockNow(); }
+});
+let pendingImport=null;
+function pendingImportCard(){
+  if(!pendingImport) return "";
+  return `<div class="card warn"><h2>This backup is locked</h2><p class="small">Enter the passcode that was set when this backup was saved.</p>
+  <form id="imp-form" class="stack"><label class="f" for="imp-code" style="color:inherit">Backup passcode<input id="imp-code" type="password" inputmode="numeric" autocomplete="off" maxlength="6"></label>
+  <p class="small" id="imp-err" hidden></p><div class="row"><button type="submit" class="primary">Restore</button><button type="button" class="ghost" data-act="impcancel">Cancel</button></div></form></div>`;
+}
+function mergeBackup(j){
+  let n=0;
+  Object.entries(j.entries||{}).forEach(([k,e])=>{ const cur=S.entries[k]; if(!cur||(e.updated||0)>(cur.updated||0)){ S.entries[k]=e; n++; } });
+  Object.assign(S.events, j.events||{});
+  S.customTags=[...new Set([...S.customTags,...(j.customTags||[])])];
+  S.ignoreWords=[...new Set([...S.ignoreWords,...(j.ignoreWords||[])])];
+  lsSave(); render(); toast(`Restored. ${n} entr${n===1?"y":"ies"} added or updated.`);
+}
+const digits=v=>/^\d{4,6}$/.test(v);
+document.addEventListener("submit",async ev=>{
+  const f=ev.target; if(!["lock-form","sec-form","imp-form"].includes(f.id)) return;
+  ev.preventDefault();
+  const btn=f.querySelector("[type=submit]"); btn.disabled=true;
+  try{
+    if(f.id==="lock-form"){
+      const err=document.getElementById("lock-err");
+      try{ await unlock(document.getElementById("lock-code").value); render(); }
+      catch(e){ err.textContent="That passcode isn't right. Try again."; err.hidden=false; document.getElementById("lock-code").value=""; }
+    } else if(f.id==="sec-form"){
+      const a=document.getElementById("pc1").value, b=document.getElementById("pc2").value, err=document.getElementById("sec-err");
+      if(!digits(a)){ err.textContent="Use 4 to 6 digits."; err.hidden=false; return; }
+      if(a!==b){ err.textContent="The two passcodes don't match."; err.hidden=false; return; }
+      await setPasscode(a); S.secForm=null; render(); toast("Passcode saved. Your journal is now encrypted.");
+    } else if(f.id==="imp-form"){
+      const err=document.getElementById("imp-err");
+      try{ const key=await deriveKey(document.getElementById("imp-code").value,fromB64(pendingImport.salt),pendingImport.iter||ITER);
+        const j=await decryptObj(key,pendingImport); pendingImport=null; mergeBackup(j); }
+      catch(e){ err.textContent="That passcode doesn't open this backup."; err.hidden=false; }
+    }
+  } finally { if(btn.isConnected) btn.disabled=false; }
+});
 window.addEventListener("pagehide",flushTyping);
 
-function exportBackup(){
-  const data=JSON.stringify({app:"daybook",version:1,exported:new Date().toISOString(),entries:S.entries,events:S.events,customTags:S.customTags,ignoreWords:S.ignoreWords},null,1);
+async function exportBackup(){
+  let data;
+  const m=lockMeta();
+  if(m && KEY){ await lsSave(); const rec=JSON.parse(localStorage.getItem(ENC)); data=JSON.stringify({app:"daybook",version:1,exported:new Date().toISOString(),encrypted:true,salt:m.salt,iter:m.iter||ITER,iv:rec.iv,ct:rec.ct}); }
+  else data=JSON.stringify({app:"daybook",version:1,exported:new Date().toISOString(),...payload()},null,1);
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([data],{type:"application/json"})); a.download=`daybook-backup-${todayKey()}.json`;
   document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},1000);
   toast("Backup file created");
@@ -656,12 +771,8 @@ document.addEventListener("change",async ev=>{
   try{
     const j=JSON.parse(await ev.target.files[0].text());
     if(j.app!=="daybook") throw new Error("not a backup");
-    let n=0;
-    Object.entries(j.entries||{}).forEach(([k,e])=>{ const cur=S.entries[k]; if(!cur||(e.updated||0)>(cur.updated||0)){ S.entries[k]=e; n++; } });
-    Object.assign(S.events, j.events||{});
-    S.customTags=[...new Set([...S.customTags,...(j.customTags||[])])];
-    S.ignoreWords=[...new Set([...S.ignoreWords,...(j.ignoreWords||[])])];
-    lsSave(); render(); toast(`Restored. ${n} entr${n===1?"y":"ies"} added or updated.`);
+    if(j.encrypted){ pendingImport=j; render(); document.getElementById("imp-code")?.focus(); }
+    else mergeBackup(j);
   }catch(err){ toast("That file isn't a Daybook backup."); }
   ev.target.value="";
 });
